@@ -5310,11 +5310,11 @@ function UsuariosView({ onNavigate }) {
             errs.nombre = 'Ingrese el nombre.';
         if (!form.apellido.trim())
             errs.apellido = 'Ingrese el apellido.';
-        if (kind === 'apoderado') {
+        if (kind === 'apoderado' || kind === 'docente') {
             const edad = Number(form.edad);
             if (!/^\d+$/.test(form.edad.trim()) || !Number.isSafeInteger(edad) || edad < 18)
-                errs.edad = 'La edad debe ser un número entero de 18 años o más.';
-        } else if (kind === 'estudiante') {
+                errs.edad = kind === 'docente' ? 'La edad del docente debe ser un número entero de 18 años o más.' : 'La edad debe ser un número entero de 18 años o más.';
+        } else if (kind === 'estudiante' || kind === 'docente') {
             const edad = Number(form.edad);
             if (!/^\d+$/.test(form.edad.trim()) || !Number.isSafeInteger(edad) || edad <= 0)
                 errs.edad = 'La edad debe ser un número entero positivo.';
@@ -5323,19 +5323,19 @@ function UsuariosView({ onNavigate }) {
         const documentoValido = kind === 'apoderado' ? /^(?:\d{8}|\d{9})$/.test(form.dni.trim()) : /^\d{8}$/.test(form.dni.trim());
         if (!documentoValido)
             errs.dni = kind === 'apoderado' ? 'Ingrese un DNI de 8 dígitos o un Carné de Extranjería de 9 dígitos.' : 'El DNI debe tener 8 dígitos.';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo))
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim()))
             errs.correo = 'Ingrese un correo válido.';
-        if ((kind === 'apoderado' || kind === 'estudiante') && usuarios.some(u => u.dni.trim() === form.dni.trim()))
+        if (usuarios.some(u => u.dni.trim() === form.dni.trim()))
             errs.dni = 'Ya existe un usuario registrado con este documento.';
-        if ((kind === 'apoderado' || kind === 'estudiante') && usuarios.some(u => u.correo.trim().toLowerCase() === form.correo.trim().toLowerCase()))
+        if (usuarios.some(u => u.correo.trim().toLowerCase() === form.correo.trim().toLowerCase()))
             errs.correo = 'Ya existe un usuario registrado con este correo.';
         const telefonoCompacto = form.telefono.trim().replace(/[\s()-]/g, '');
         const telefonoValido = telefonoCompacto.startsWith('+')
             ? /^\+[1-9]\d{7,14}$/.test(telefonoCompacto)
             : /^9\d{8}$/.test(telefonoCompacto);
-        if (kind === 'estudiante' && !telefonoCompacto)
-            errs.telefono = 'Ingrese el teléfono del estudiante.';
-        else if ((kind === 'estudiante' || kind === 'apoderado') && telefonoCompacto && !telefonoValido)
+        if ((kind === 'estudiante' || kind === 'docente') && !telefonoCompacto)
+            errs.telefono = kind === 'docente' ? 'Ingrese el teléfono del docente.' : 'Ingrese el teléfono del estudiante.';
+        else if ((kind === 'estudiante' || kind === 'apoderado' || kind === 'docente') && telefonoCompacto && !telefonoValido)
             errs.telefono = 'Ingrese 9 dígitos para un celular peruano o un número internacional con + y código de país.';
         if (kind === 'apoderado' && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(form.password))
             errs.password = 'Use al menos 8 caracteres, con mayúscula, minúscula, número y símbolo.';
@@ -5372,7 +5372,7 @@ function UsuariosView({ onNavigate }) {
             const nuevo = {
                 id: 'u' + Date.now(), nombre: form.nombre.trim(), apellido: form.apellido.trim(),
                 dni: form.dni.trim(), rol: rolMap[kind], correo: form.correo.trim(), activo: true,
-                edad: Number(form.edad), ...(telefonoCompacto ? { telefono: kind === 'docente' ? form.telefono.trim() : (telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}`) } : {}),
+                edad: Number(form.edad), ...(telefonoCompacto ? { telefono: telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}` } : {}),
                 ...(kind === 'estudiante' ? { codigoEstudiante, apoderadoId: form.apoderadoSeleccionado.id } : {})
             };
             setUsuarios(p => [...p, nuevo]);
@@ -5433,23 +5433,26 @@ function UsuariosView({ onNavigate }) {
     // Register form body shared by apoderado+docente (same fields)
     const RegisterFields = ({ kind }) => (<div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label="Nombre" value={form.nombre} onChange={v => f('nombre', v)} placeholder="Ingrese el nombre" error={formErrors.nombre} required={kind === 'estudiante'}/>
-        <UsuarioField label="Apellido" value={form.apellido} onChange={v => f('apellido', v)} placeholder="Ingrese el apellido" error={formErrors.apellido} required={kind === 'estudiante'}/>
+        <UsuarioField label="Nombre" value={form.nombre} onChange={v => f('nombre', v)} placeholder="Ingrese el nombre" error={formErrors.nombre} required/>
+        <UsuarioField label="Apellido" value={form.apellido} onChange={v => f('apellido', v)} placeholder="Ingrese el apellido" error={formErrors.apellido} required/>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label="Edad" type="number" min={kind === 'estudiante' ? 1 : undefined} step={kind === 'estudiante' ? 1 : undefined} value={form.edad} onChange={v => f('edad', v)} placeholder="Ingrese la edad" error={formErrors.edad} required={kind === 'estudiante'}/>
         <div>
-          <UsuarioField label={kind === 'apoderado' ? 'Documento de identidad' : 'DNI'} value={form.dni} onChange={v => f('dni', v)} placeholder={kind === 'apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={formErrors.dni} required={kind === 'estudiante'}/>
+          <UsuarioField label="Edad" type="number" min={kind === 'estudiante' ? 1 : 18} step={1} value={form.edad} onChange={v => f('edad', v)} placeholder="Ingrese la edad" error={formErrors.edad} required/>
+          {kind === 'docente' && <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>El docente debe tener 18 años o más.</p>}
+        </div>
+        <div>
+          <UsuarioField label={kind === 'apoderado' ? 'Documento de identidad' : 'DNI'} value={form.dni} onChange={v => f('dni', v)} placeholder={kind === 'apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={formErrors.dni} required/>
           {kind === 'apoderado' && <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>DNI: 8 dígitos · Carné de Extranjería (C.E.): 9 dígitos.</p>}
         </div>
       </div>
       {(kind === 'apoderado' || kind === 'docente' || kind === 'estudiante') && (<>
-          <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v => f('telefono', v)} placeholder="Ingrese el teléfono" error={kind !== 'docente' ? formErrors.telefono : undefined} required={kind === 'estudiante'}/>
-          {kind !== 'docente' && <p style={{ fontSize: 11, color: '#64748b', margin: '-10px 0 0' }}>Perú: ingrese 9 dígitos. Otro país: incluya + y el prefijo internacional (por ejemplo, +51…).</p>}
+          <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v => f('telefono', v)} placeholder="Ingrese el teléfono" error={formErrors.telefono} required={kind === 'estudiante' || kind === 'docente'}/>
+          <p style={{ fontSize: 11, color: '#64748b', margin: '-10px 0 0' }}>Perú: ingrese 9 dígitos. Otro país: incluya + y el prefijo internacional.</p>
         </>)}
-      <UsuarioField label="Correo" type="email" value={form.correo} onChange={v => f('correo', v)} placeholder="Ingrese el correo electrónico" error={formErrors.correo} required={kind === 'estudiante'}/>
+      <UsuarioField label="Correo" type="email" value={form.correo} onChange={v => f('correo', v)} placeholder="Ingrese el correo electrónico" error={formErrors.correo} required/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label={kind === 'estudiante' ? 'Contraseña inicial' : 'Contraseña'} type="password" value={form.password} onChange={v => f('password', v)} placeholder="Ingrese la contraseña" error={formErrors.password} required={kind === 'estudiante'}/>
+        <UsuarioField label={kind === 'estudiante' || kind === 'docente' ? 'Contraseña inicial' : 'Contraseña'} type="password" value={form.password} onChange={v => f('password', v)} placeholder="Ingrese la contraseña" error={formErrors.password} required/>
         <UsuarioField label="Confirmar contraseña" type="password" value={form.confirm} onChange={v => f('confirm', v)} placeholder="Confirme la contraseña" error={formErrors.confirm}/>
       </div>
       {kind === 'apoderado' && <p style={{ fontSize: 11, color: '#64748b', margin: '-8px 0 0' }}>La contraseña debe tener al menos 8 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo.</p>}
