@@ -5204,13 +5204,13 @@ function AdminCursosView({ onNavigate }) {
 }
 const USUARIOS_INICIAL = [
     { id: 'u1', nombre: 'María', apellido: 'López', dni: '74852136', rol: 'Apoderado', correo: 'maria.lopez@email.com', activo: true },
-    { id: 'u2', nombre: 'Carlos', apellido: 'Ramírez', dni: '70482135', rol: 'Estudiante', correo: 'carlos.ramirez@email.com', activo: true },
+    { id: 'u2', nombre: 'Carlos', apellido: 'Ramírez', dni: '70482135', rol: 'Estudiante', correo: 'carlos.ramirez@email.com', activo: true, codigoEstudiante: 'EST-016', apoderadoId: 'u1' },
     { id: 'u3', nombre: 'Ana', apellido: 'Torres', dni: '72341198', rol: 'Apoderado', correo: 'ana.torres@email.com', activo: true },
     { id: 'u4', nombre: 'Jorge', apellido: 'Herrera', dni: '73456789', rol: 'Docente', correo: 'jorge.herrera@colegio.pe', activo: true },
-    { id: 'u5', nombre: 'Lucía', apellido: 'Flores', dni: '75012378', rol: 'Estudiante', correo: 'lucia.flores@email.com', activo: false },
+    { id: 'u5', nombre: 'Lucía', apellido: 'Flores', dni: '75012378', rol: 'Estudiante', correo: 'lucia.flores@email.com', activo: false, codigoEstudiante: 'EST-017', apoderadoId: 'u3' },
     { id: 'u6', nombre: 'Miguel', apellido: 'Castro', dni: '71234567', rol: 'Docente', correo: 'miguel.castro@colegio.pe', activo: true },
     { id: 'u7', nombre: 'Patricia', apellido: 'Vega', dni: '76543210', rol: 'Apoderado', correo: 'patricia.vega@email.com', activo: true },
-    { id: 'u8', nombre: 'Diego', apellido: 'Salinas', dni: '77654321', rol: 'Estudiante', correo: 'diego.salinas@email.com', activo: true },
+    { id: 'u8', nombre: 'Diego', apellido: 'Salinas', dni: '77654321', rol: 'Estudiante', correo: 'diego.salinas@email.com', activo: true, codigoEstudiante: 'EST-018', apoderadoId: 'u7' },
 ];
 const ROL_BADGE = {
     Apoderado: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
@@ -5250,6 +5250,7 @@ function UsuarioModalShell({ title, subtitle, onSubmit, submitLabel, submitDisab
 function UsuariosView({ onNavigate }) {
     const [usuarios, setUsuarios] = useState(USUARIOS_INICIAL);
     const [query, setQuery] = useState('');
+    const [rolFiltro, setRolFiltro] = useState('Todos');
     const [toast, setToast] = useState(null);
     const [modal, setModal] = useState(null);
     const [editTarget, setEditTarget] = useState(null);
@@ -5259,11 +5260,13 @@ function UsuariosView({ onNavigate }) {
     const emptyForm = { nombre: '', apellido: '', edad: '', dni: '', telefono: '', correo: '', password: '', confirm: '', dniApoderado: '', apoderadoSeleccionado: null, apoderadoError: '' };
     const [form, setForm] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
-    const [editForm, setEditForm] = useState({ nombre: '', apellido: '', dni: '', correo: '' });
+    const [editForm, setEditForm] = useState({ nombre: '', apellido: '', dni: '', telefono: '', correo: '', dniApoderado: '', apoderadoSeleccionado: null });
     const [editErrors, setEditErrors] = useState({});
-    const filtered = usuarios.filter(u => query.trim().length === 0 ||
-        `${u.nombre} ${u.apellido}`.toLowerCase().includes(query.toLowerCase()) ||
-        u.dni.includes(query));
+    const busqueda = query.trim().toLowerCase();
+    const filtered = usuarios.filter(u =>
+        (rolFiltro === 'Todos' || u.rol === rolFiltro) &&
+        (!busqueda || `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda) || u.dni.includes(query.trim()))
+    );
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4000); };
     const openRegister = (kind) => {
         setForm(emptyForm);
@@ -5272,7 +5275,8 @@ function UsuariosView({ onNavigate }) {
     };
     const openEdit = (u) => {
         setEditTarget(u);
-        setEditForm({ nombre: u.nombre, apellido: u.apellido, dni: u.dni, correo: u.correo });
+        const apoderadoSeleccionado = u.apoderadoId ? usuarios.find(usuario => usuario.id === u.apoderadoId) || null : null;
+        setEditForm({ nombre: u.nombre, apellido: u.apellido, dni: u.dni, telefono: u.telefono || '', correo: u.correo, dniApoderado: apoderadoSeleccionado?.dni || '', apoderadoSeleccionado });
         setEditErrors({});
         setModal('editar');
     };
@@ -5289,6 +5293,16 @@ function UsuariosView({ onNavigate }) {
             setForm(p => ({ ...p, apoderadoSeleccionado: found, apoderadoError: '' }));
         else
             setForm(p => ({ ...p, apoderadoSeleccionado: null, apoderadoError: 'No se encontró un apoderado registrado con este DNI.' }));
+    };
+    const searchEditApoderado = () => {
+        const found = usuarios.find(u => u.rol === 'Apoderado' && u.dni === editForm.dniApoderado.trim());
+        if (found) {
+            setEditForm(p => ({ ...p, apoderadoSeleccionado: found }));
+            setEditErrors(p => ({ ...p, apoderadoId: '' }));
+        } else {
+            setEditForm(p => ({ ...p, apoderadoSeleccionado: null }));
+            setEditErrors(p => ({ ...p, apoderadoId: 'No se encontró un apoderado registrado con este DNI.' }));
+        }
     };
     const validateRegister = (kind) => {
         const errs = {};
@@ -5373,17 +5387,36 @@ function UsuariosView({ onNavigate }) {
             errs.nombre = 'Ingrese el nombre.';
         if (!editForm.apellido.trim())
             errs.apellido = 'Ingrese el apellido.';
-        if (!/^\d{8}$/.test(editForm.dni))
+        if (!/^\d{8}$/.test(editForm.dni.trim()))
             errs.dni = 'El DNI debe tener 8 dígitos.';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.correo))
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.correo.trim()))
             errs.correo = 'Ingrese un correo válido.';
+        const telefonoCompacto = editForm.telefono.trim().replace(/[\s()-]/g, '');
+        const telefonoValido = telefonoCompacto.startsWith('+')
+            ? /^\+[1-9]\d{7,14}$/.test(telefonoCompacto)
+            : /^9\d{8}$/.test(telefonoCompacto);
+        if (editTarget?.rol === 'Estudiante' && !telefonoCompacto)
+            errs.telefono = 'Ingrese el teléfono del estudiante.';
+        else if (telefonoCompacto && !telefonoValido)
+            errs.telefono = 'Ingrese 9 dígitos para un celular peruano o un número internacional con + y código de país.';
+        if (editTarget?.rol === 'Estudiante' && !editForm.apoderadoSeleccionado)
+            errs.apoderadoId = 'Seleccione un apoderado registrado.';
         if (Object.keys(errs).length) {
             setEditErrors(errs);
             return;
         }
         setSubmitting(true);
         setTimeout(() => {
-            setUsuarios(p => p.map(u => u.id === editTarget?.id ? { ...u, ...editForm } : u));
+            const telefono = telefonoCompacto ? (telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}`) : '';
+            setUsuarios(p => p.map(u => u.id === editTarget?.id ? {
+                ...u,
+                nombre: editForm.nombre.trim(),
+                apellido: editForm.apellido.trim(),
+                dni: editForm.dni.trim(),
+                correo: editForm.correo.trim(),
+                telefono,
+                ...(u.rol === 'Estudiante' ? { apoderadoId: editForm.apoderadoSeleccionado.id } : {})
+            } : u));
             closeModal();
             showToast('Los datos del usuario han sido actualizados correctamente.');
         }, 700);
@@ -5468,6 +5501,12 @@ function UsuariosView({ onNavigate }) {
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por nombre o DNI..." style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: '#121c2a', width: '100%', fontFamily: 'inherit' }}/>
           {query && <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
         </div>
+        <select value={rolFiltro} onChange={e => setRolFiltro(e.target.value)} aria-label="Filtrar usuarios por rol" style={{ minWidth: 164, padding: '10px 12px', border: '1.5px solid #dde2f0', borderRadius: 8, background: '#fff', color: '#374151', fontSize: 13, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+          <option value="Todos">Todos los roles</option>
+          <option value="Apoderado">Solo apoderados</option>
+          <option value="Docente">Solo docentes</option>
+          <option value="Estudiante">Solo estudiantes</option>
+        </select>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[['apoderado', 'Registrar apoderado'], ['estudiante', 'Registrar estudiante'], ['docente', 'Registrar docente']].map(([kind, label]) => (<button key={kind} onClick={() => openRegister(kind)} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#00236f', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(0,35,111,0.18)', transition: 'background 0.12s', whiteSpace: 'nowrap' }} onMouseEnter={e => e.currentTarget.style.background = '#001d5a'} onMouseLeave={e => e.currentTarget.style.background = '#00236f'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -5512,13 +5551,31 @@ function UsuariosView({ onNavigate }) {
         </UsuarioModalShell>)}
 
       {/* ── Modal: Edit ── */}
-      {modal === 'editar' && editTarget && (<UsuarioModalShell title="Editar usuario" subtitle="Gestión de usuarios" onSubmit={handleEdit} submitLabel="Guardar cambios" submitting={submitting} onClose={closeModal}>
+      {modal === 'editar' && editTarget && (<UsuarioModalShell title="Editar usuario" subtitle="Gestión de usuarios" onSubmit={handleEdit} submitLabel="Guardar cambios" submitDisabled={editTarget.rol === 'Estudiante' && !editForm.apoderadoSeleccionado} submitting={submitting} onClose={closeModal}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <UsuarioField label="Nombre" value={editForm.nombre} onChange={v => { setEditForm(p => ({ ...p, nombre: v })); setEditErrors(p => ({ ...p, nombre: '' })); }} placeholder="Nombre" error={editErrors.nombre}/>
               <UsuarioField label="Apellido" value={editForm.apellido} onChange={v => { setEditForm(p => ({ ...p, apellido: v })); setEditErrors(p => ({ ...p, apellido: '' })); }} placeholder="Apellido" error={editErrors.apellido}/>
             </div>
             <UsuarioField label="DNI" value={editForm.dni} onChange={v => { setEditForm(p => ({ ...p, dni: v })); setEditErrors(p => ({ ...p, dni: '' })); }} placeholder="DNI" error={editErrors.dni}/>
+            <div>
+              <UsuarioField label="Teléfono" type="tel" value={editForm.telefono} onChange={v => { setEditForm(p => ({ ...p, telefono: v })); setEditErrors(p => ({ ...p, telefono: '' })); }} placeholder="Ingrese 9 dígitos o prefijo internacional +código" error={editErrors.telefono} required={editTarget.rol === 'Estudiante'}/>
+              <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>Perú: 9 dígitos. Otro país: incluya + y el prefijo internacional.</p>
+            </div>
+            {editTarget.rol === 'Estudiante' && <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Apoderado asociado <span style={{ color: '#ba1a1a' }}>*</span></label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={editForm.dniApoderado} onChange={e => { setEditForm(p => ({ ...p, dniApoderado: e.target.value, apoderadoSeleccionado: null })); setEditErrors(p => ({ ...p, apoderadoId: '' })); }} placeholder="Buscar apoderado por DNI..." style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${editErrors.apoderadoId ? '#ba1a1a' : '#dde2f0'}`, background: '#f8f9ff', fontSize: 13, color: '#121c2a', fontFamily: 'inherit', outline: 'none' }} onKeyDown={e => e.key === 'Enter' && searchEditApoderado()}/>
+                <button onClick={searchEditApoderado} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#0058be', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Buscar</button>
+              </div>
+              {editErrors.apoderadoId && <p style={{ fontSize: 11, color: '#ba1a1a', margin: '3px 0 0' }}>{editErrors.apoderadoId}</p>}
+              {editForm.apoderadoSeleccionado && <div style={{ marginTop: 8, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Apoderado que quedará asociado</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#121c2a' }}>{editForm.apoderadoSeleccionado.nombre} {editForm.apoderadoSeleccionado.apellido}</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>DNI: {editForm.apoderadoSeleccionado.dni}</div>
+              </div>}
+              {!editForm.apoderadoSeleccionado && <p style={{ fontSize: 11, color: '#64748b', margin: '6px 0 0' }}>Busca y selecciona un apoderado para habilitar «Guardar cambios».</p>}
+            </div>}
             <UsuarioField label="Correo" value={editForm.correo} onChange={v => { setEditForm(p => ({ ...p, correo: v })); setEditErrors(p => ({ ...p, correo: '' })); }} placeholder="Correo" type="email" error={editErrors.correo}/>
           </div>
         </UsuarioModalShell>)}
