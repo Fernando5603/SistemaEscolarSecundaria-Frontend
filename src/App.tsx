@@ -6154,6 +6154,7 @@ type UsuarioRol = 'Apoderado' | 'Estudiante' | 'Docente'
 interface Usuario {
   id: string; nombre: string; apellido: string; dni: string
   rol: UsuarioRol; correo: string; activo: boolean
+  edad?: number; telefono?: string
 }
 
 const USUARIOS_INICIAL: Usuario[] = [
@@ -6270,10 +6271,22 @@ function UsuariosView({ onNavigate }: { onNavigate: (id:string)=>void }) {
     const errs: Record<string,string> = {}
     if (!form.nombre.trim())   errs.nombre   = 'Ingrese el nombre.'
     if (!form.apellido.trim()) errs.apellido = 'Ingrese el apellido.'
-    if (!form.edad.trim() || isNaN(Number(form.edad))) errs.edad = 'Ingrese una edad válida.'
-    if (!/^\d{8}$/.test(form.dni)) errs.dni = 'El DNI debe tener 8 dígitos.'
+    if (kind==='apoderado') {
+      const edad = Number(form.edad)
+      if (!/^\d+$/.test(form.edad.trim()) || !Number.isSafeInteger(edad) || edad < 18) errs.edad = 'La edad debe ser un número entero de 18 años o más.'
+    } else if (!form.edad.trim() || isNaN(Number(form.edad))) errs.edad = 'Ingrese una edad válida.'
+    const documentoValido = kind==='apoderado' ? /^(?:\d{8}|\d{9})$/.test(form.dni.trim()) : /^\d{8}$/.test(form.dni.trim())
+    if (!documentoValido) errs.dni = kind==='apoderado' ? 'Ingrese un DNI de 8 dígitos o un Carné de Extranjería de 9 dígitos.' : 'El DNI debe tener 8 dígitos.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) errs.correo = 'Ingrese un correo válido.'
-    if (!form.password) errs.password = 'Ingrese la contraseña.'
+    if (kind==='apoderado' && usuarios.some(u=>u.dni===form.dni.trim())) errs.dni = 'Ya existe un usuario registrado con este documento.'
+    if (kind==='apoderado' && usuarios.some(u=>u.correo.trim().toLowerCase()===form.correo.trim().toLowerCase())) errs.correo = 'Ya existe un usuario registrado con este correo.'
+    const telefonoCompacto = form.telefono.trim().replace(/[\s()-]/g, '')
+    const telefonoValido = telefonoCompacto.startsWith('+')
+      ? /^\+[1-9]\d{7,14}$/.test(telefonoCompacto)
+      : /^9\d{8}$/.test(telefonoCompacto)
+    if (kind==='apoderado' && telefonoCompacto && !telefonoValido) errs.telefono = 'Ingrese 9 dígitos para un celular peruano o un número internacional con + y código de país.'
+    if (kind==='apoderado' && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(form.password)) errs.password = 'Use al menos 8 caracteres, con mayúscula, minúscula, número y símbolo.'
+    else if (!form.password) errs.password = 'Ingrese la contraseña.'
     if (form.password !== form.confirm) errs.confirm = 'Las contraseñas no coinciden.'
     if (kind==='estudiante' && !form.apoderadoSeleccionado) errs.dniApoderado = 'Seleccione un apoderado válido.'
     return errs
@@ -6282,12 +6295,14 @@ function UsuariosView({ onNavigate }: { onNavigate: (id:string)=>void }) {
   const handleRegister = (kind: 'apoderado'|'estudiante'|'docente') => {
     const errs = validateRegister(kind)
     if (Object.keys(errs).length) { setFormErrors(errs); return }
+    const telefonoCompacto = form.telefono.trim().replace(/[\s()-]/g, '')
     setSubmitting(true)
     setTimeout(()=>{
       const rolMap: Record<string,UsuarioRol> = { apoderado:'Apoderado', estudiante:'Estudiante', docente:'Docente' }
       const nuevo: Usuario = {
         id: 'u'+Date.now(), nombre:form.nombre.trim(), apellido:form.apellido.trim(),
-        dni:form.dni, rol:rolMap[kind], correo:form.correo, activo:true
+        dni:form.dni.trim(), rol:rolMap[kind], correo:form.correo.trim(), activo:true,
+        edad:Number(form.edad), ...(form.telefono.trim() ? { telefono:kind==='apoderado' ? (telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}`) : form.telefono.trim() } : {})
       }
       setUsuarios(p=>[...p, nuevo]); closeModal()
       const msg: Record<string,string> = { apoderado:'El apoderado ha sido registrado correctamente.', estudiante:'El estudiante ha sido registrado correctamente.', docente:'El docente ha sido registrado correctamente.' }
@@ -6327,22 +6342,29 @@ function UsuariosView({ onNavigate }: { onNavigate: (id:string)=>void }) {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
         <UsuarioField label="Edad" type="number" value={form.edad} onChange={v=>f('edad',v)} placeholder="Ingrese la edad" error={formErrors.edad} />
-        <UsuarioField label="DNI"  value={form.dni}  onChange={v=>f('dni',v)}  placeholder="Ingrese el DNI"  error={formErrors.dni} />
+        <div>
+          <UsuarioField label={kind==='apoderado' ? 'Documento de identidad' : 'DNI'} value={form.dni} onChange={v=>f('dni',v)} placeholder={kind==='apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={formErrors.dni} />
+          {kind==='apoderado' && <p style={{ fontSize:11, color:'#64748b', margin:'4px 0 0' }}>DNI: 8 dígitos · Carné de Extranjería (C.E.): 9 dígitos.</p>}
+        </div>
       </div>
       {(kind==='apoderado'||kind==='docente') && (
-        <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v=>f('telefono',v)} placeholder="Ingrese el teléfono" />
+        <>
+          <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v=>f('telefono',v)} placeholder="Ingrese el teléfono" error={kind==='apoderado' ? formErrors.telefono : undefined} />
+          {kind==='apoderado' && <p style={{ fontSize:11, color:'#64748b', margin:'-10px 0 0' }}>Perú: ingrese 9 dígitos. Otro país: incluya + y el prefijo internacional (por ejemplo, +51…).</p>}
+        </>
       )}
       <UsuarioField label="Correo" type="email" value={form.correo} onChange={v=>f('correo',v)} placeholder="Ingrese el correo electrónico" error={formErrors.correo} />
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
         <UsuarioField label="Contraseña"         type="password" value={form.password} onChange={v=>f('password',v)} placeholder="Ingrese la contraseña"   error={formErrors.password} />
         <UsuarioField label="Confirmar contraseña" type="password" value={form.confirm}  onChange={v=>f('confirm',v)}  placeholder="Confirme la contraseña" error={formErrors.confirm} />
       </div>
+      {kind==='apoderado' && <p style={{ fontSize:11, color:'#64748b', margin:'-8px 0 0' }}>La contraseña debe tener al menos 8 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo.</p>}
       {kind==='estudiante' && (
         <div>
-          <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:5 }}>DNI del apoderado</label>
+          <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:5 }}>Documento del apoderado</label>
           <div style={{ display:'flex', gap:8 }}>
             <input value={form.dniApoderado} onChange={e=>{ setForm(p=>({...p,dniApoderado:e.target.value,apoderadoError:'',apoderadoSeleccionado:null})); setFormErrors(p=>({...p,dniApoderado:''})) }}
-              placeholder="Buscar por DNI del apoderado..."
+              placeholder="Ingrese DNI o Carné de Extranjería..."
               style={{ flex:1, padding:'9px 12px', borderRadius:8, border:`1.5px solid ${(formErrors.dniApoderado||form.apoderadoError)?'#ba1a1a':'#dde2f0'}`, background:'#f8f9ff', fontSize:13, color:'#121c2a', fontFamily:'inherit', outline:'none', transition:'border-color 0.15s' }}
               onFocus={e=>e.currentTarget.style.borderColor='#0058be'} onBlur={e=>e.currentTarget.style.borderColor='#dde2f0'}
               onKeyDown={e=>e.key==='Enter'&&searchApoderado()}
