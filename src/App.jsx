@@ -5217,10 +5217,10 @@ const ROL_BADGE = {
     Estudiante: { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
     Docente: { bg: '#fdf4ff', color: '#7e22ce', border: '#e9d5ff' },
 };
-function UsuarioField({ label, value, onChange, placeholder, type = 'text', error }) {
+function UsuarioField({ label, value, onChange, placeholder, type = 'text', error, required = false, min, step }) {
     return (<div>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${error ? '#ba1a1a' : '#dde2f0'}`, background: '#f8f9ff', fontSize: 13, color: '#121c2a', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }} onFocus={e => e.currentTarget.style.borderColor = error ? '#ba1a1a' : '#0058be'} onBlur={e => e.currentTarget.style.borderColor = error ? '#ba1a1a' : '#dde2f0'}/>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{label}{required && <span style={{ color: '#ba1a1a' }}> *</span>}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} min={min} step={step} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${error ? '#ba1a1a' : '#dde2f0'}`, background: '#f8f9ff', fontSize: 13, color: '#121c2a', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }} onFocus={e => e.currentTarget.style.borderColor = error ? '#ba1a1a' : '#0058be'} onBlur={e => e.currentTarget.style.borderColor = error ? '#ba1a1a' : '#dde2f0'}/>
       {error && <p style={{ fontSize: 11, color: '#ba1a1a', margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 3 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{error}</p>}
     </div>);
 }
@@ -5300,23 +5300,28 @@ function UsuariosView({ onNavigate }) {
             const edad = Number(form.edad);
             if (!/^\d+$/.test(form.edad.trim()) || !Number.isSafeInteger(edad) || edad < 18)
                 errs.edad = 'La edad debe ser un número entero de 18 años o más.';
-        }
-        else if (!form.edad.trim() || isNaN(Number(form.edad)))
+        } else if (kind === 'estudiante') {
+            const edad = Number(form.edad);
+            if (!/^\d+$/.test(form.edad.trim()) || !Number.isSafeInteger(edad) || edad <= 0)
+                errs.edad = 'La edad debe ser un número entero positivo.';
+        } else if (!form.edad.trim() || isNaN(Number(form.edad)))
             errs.edad = 'Ingrese una edad válida.';
         const documentoValido = kind === 'apoderado' ? /^(?:\d{8}|\d{9})$/.test(form.dni.trim()) : /^\d{8}$/.test(form.dni.trim());
         if (!documentoValido)
             errs.dni = kind === 'apoderado' ? 'Ingrese un DNI de 8 dígitos o un Carné de Extranjería de 9 dígitos.' : 'El DNI debe tener 8 dígitos.';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo))
             errs.correo = 'Ingrese un correo válido.';
-        if (kind === 'apoderado' && usuarios.some(u => u.dni === form.dni.trim()))
+        if ((kind === 'apoderado' || kind === 'estudiante') && usuarios.some(u => u.dni.trim() === form.dni.trim()))
             errs.dni = 'Ya existe un usuario registrado con este documento.';
-        if (kind === 'apoderado' && usuarios.some(u => u.correo.trim().toLowerCase() === form.correo.trim().toLowerCase()))
+        if ((kind === 'apoderado' || kind === 'estudiante') && usuarios.some(u => u.correo.trim().toLowerCase() === form.correo.trim().toLowerCase()))
             errs.correo = 'Ya existe un usuario registrado con este correo.';
         const telefonoCompacto = form.telefono.trim().replace(/[\s()-]/g, '');
         const telefonoValido = telefonoCompacto.startsWith('+')
             ? /^\+[1-9]\d{7,14}$/.test(telefonoCompacto)
             : /^9\d{8}$/.test(telefonoCompacto);
-        if (kind === 'apoderado' && telefonoCompacto && !telefonoValido)
+        if (kind === 'estudiante' && !telefonoCompacto)
+            errs.telefono = 'Ingrese el teléfono del estudiante.';
+        else if ((kind === 'estudiante' || kind === 'apoderado') && telefonoCompacto && !telefonoValido)
             errs.telefono = 'Ingrese 9 dígitos para un celular peruano o un número internacional con + y código de país.';
         if (kind === 'apoderado' && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(form.password))
             errs.password = 'Use al menos 8 caracteres, con mayúscula, minúscula, número y símbolo.';
@@ -5335,18 +5340,31 @@ function UsuariosView({ onNavigate }) {
             return;
         }
         const telefonoCompacto = form.telefono.trim().replace(/[\s()-]/g, '');
+        let codigoEstudiante;
+        if (kind === 'estudiante') {
+            const codigosUsados = new Set([
+                ...INITIAL_STUDENTS.map(estudiante => estudiante.studentId),
+                ...usuarios.map(usuario => usuario.codigoEstudiante).filter(Boolean)
+            ]);
+            let correlativo = 1;
+            do {
+                codigoEstudiante = `EST-${String(correlativo).padStart(3, '0')}`;
+                correlativo += 1;
+            } while (codigosUsados.has(codigoEstudiante));
+        }
         setSubmitting(true);
         setTimeout(() => {
             const rolMap = { apoderado: 'Apoderado', estudiante: 'Estudiante', docente: 'Docente' };
             const nuevo = {
                 id: 'u' + Date.now(), nombre: form.nombre.trim(), apellido: form.apellido.trim(),
                 dni: form.dni.trim(), rol: rolMap[kind], correo: form.correo.trim(), activo: true,
-                edad: Number(form.edad), ...(form.telefono.trim() ? { telefono: kind === 'apoderado' ? (telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}`) : form.telefono.trim() } : {})
+                edad: Number(form.edad), ...(telefonoCompacto ? { telefono: kind === 'docente' ? form.telefono.trim() : (telefonoCompacto.startsWith('+') ? telefonoCompacto : `+51${telefonoCompacto}`) } : {}),
+                ...(kind === 'estudiante' ? { codigoEstudiante, apoderadoId: form.apoderadoSeleccionado.id } : {})
             };
             setUsuarios(p => [...p, nuevo]);
             closeModal();
             const msg = { apoderado: 'El apoderado ha sido registrado correctamente.', estudiante: 'El estudiante ha sido registrado correctamente.', docente: 'El docente ha sido registrado correctamente.' };
-            showToast(msg[kind]);
+            showToast(kind === 'estudiante' ? `${msg[kind]} Código: ${codigoEstudiante}` : msg[kind]);
         }, 700);
     };
     const handleEdit = () => {
@@ -5382,28 +5400,28 @@ function UsuariosView({ onNavigate }) {
     // Register form body shared by apoderado+docente (same fields)
     const RegisterFields = ({ kind }) => (<div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label="Nombre" value={form.nombre} onChange={v => f('nombre', v)} placeholder="Ingrese el nombre" error={formErrors.nombre}/>
-        <UsuarioField label="Apellido" value={form.apellido} onChange={v => f('apellido', v)} placeholder="Ingrese el apellido" error={formErrors.apellido}/>
+        <UsuarioField label="Nombre" value={form.nombre} onChange={v => f('nombre', v)} placeholder="Ingrese el nombre" error={formErrors.nombre} required={kind === 'estudiante'}/>
+        <UsuarioField label="Apellido" value={form.apellido} onChange={v => f('apellido', v)} placeholder="Ingrese el apellido" error={formErrors.apellido} required={kind === 'estudiante'}/>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label="Edad" type="number" value={form.edad} onChange={v => f('edad', v)} placeholder="Ingrese la edad" error={formErrors.edad}/>
+        <UsuarioField label="Edad" type="number" min={kind === 'estudiante' ? 1 : undefined} step={kind === 'estudiante' ? 1 : undefined} value={form.edad} onChange={v => f('edad', v)} placeholder="Ingrese la edad" error={formErrors.edad} required={kind === 'estudiante'}/>
         <div>
-          <UsuarioField label={kind === 'apoderado' ? 'Documento de identidad' : 'DNI'} value={form.dni} onChange={v => f('dni', v)} placeholder={kind === 'apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={formErrors.dni}/>
+          <UsuarioField label={kind === 'apoderado' ? 'Documento de identidad' : 'DNI'} value={form.dni} onChange={v => f('dni', v)} placeholder={kind === 'apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={formErrors.dni} required={kind === 'estudiante'}/>
           {kind === 'apoderado' && <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>DNI: 8 dígitos · Carné de Extranjería (C.E.): 9 dígitos.</p>}
         </div>
       </div>
-      {(kind === 'apoderado' || kind === 'docente') && (<>
-          <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v => f('telefono', v)} placeholder="Ingrese el teléfono" error={kind === 'apoderado' ? formErrors.telefono : undefined}/>
-          {kind === 'apoderado' && <p style={{ fontSize: 11, color: '#64748b', margin: '-10px 0 0' }}>Perú: ingrese 9 dígitos. Otro país: incluya + y el prefijo internacional (por ejemplo, +51…).</p>}
+      {(kind === 'apoderado' || kind === 'docente' || kind === 'estudiante') && (<>
+          <UsuarioField label="Teléfono" type="tel" value={form.telefono} onChange={v => f('telefono', v)} placeholder="Ingrese el teléfono" error={kind !== 'docente' ? formErrors.telefono : undefined} required={kind === 'estudiante'}/>
+          {kind !== 'docente' && <p style={{ fontSize: 11, color: '#64748b', margin: '-10px 0 0' }}>Perú: ingrese 9 dígitos. Otro país: incluya + y el prefijo internacional (por ejemplo, +51…).</p>}
         </>)}
-      <UsuarioField label="Correo" type="email" value={form.correo} onChange={v => f('correo', v)} placeholder="Ingrese el correo electrónico" error={formErrors.correo}/>
+      <UsuarioField label="Correo" type="email" value={form.correo} onChange={v => f('correo', v)} placeholder="Ingrese el correo electrónico" error={formErrors.correo} required={kind === 'estudiante'}/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <UsuarioField label="Contraseña" type="password" value={form.password} onChange={v => f('password', v)} placeholder="Ingrese la contraseña" error={formErrors.password}/>
+        <UsuarioField label={kind === 'estudiante' ? 'Contraseña inicial' : 'Contraseña'} type="password" value={form.password} onChange={v => f('password', v)} placeholder="Ingrese la contraseña" error={formErrors.password} required={kind === 'estudiante'}/>
         <UsuarioField label="Confirmar contraseña" type="password" value={form.confirm} onChange={v => f('confirm', v)} placeholder="Confirme la contraseña" error={formErrors.confirm}/>
       </div>
       {kind === 'apoderado' && <p style={{ fontSize: 11, color: '#64748b', margin: '-8px 0 0' }}>La contraseña debe tener al menos 8 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo.</p>}
       {kind === 'estudiante' && (<div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Documento del apoderado</label>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>DNI del apoderado <span style={{ color: '#ba1a1a' }}>*</span></label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input value={form.dniApoderado} onChange={e => { setForm(p => ({ ...p, dniApoderado: e.target.value, apoderadoError: '', apoderadoSeleccionado: null })); setFormErrors(p => ({ ...p, dniApoderado: '' })); }} placeholder="Ingrese DNI o Carné de Extranjería..." style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${(formErrors.dniApoderado || form.apoderadoError) ? '#ba1a1a' : '#dde2f0'}`, background: '#f8f9ff', fontSize: 13, color: '#121c2a', fontFamily: 'inherit', outline: 'none', transition: 'border-color 0.15s' }} onFocus={e => e.currentTarget.style.borderColor = '#0058be'} onBlur={e => e.currentTarget.style.borderColor = '#dde2f0'} onKeyDown={e => e.key === 'Enter' && searchApoderado()}/>
             <button onClick={searchApoderado} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#0058be', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Buscar</button>
@@ -5468,7 +5486,10 @@ function UsuariosView({ onNavigate }) {
         {filtered.length === 0 ? (<div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No se encontraron usuarios.</div>) : (filtered.map((u, idx) => {
             const rb = ROL_BADGE[u.rol];
             return (<div key={u.id} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.6fr 100px 160px', padding: '0 20px', borderBottom: idx < filtered.length - 1 ? '1px solid #f1f4f9' : 'none', alignItems: 'center', minHeight: 56, transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = '#fafbff'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{u.nombre} {u.apellido}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{u.nombre} {u.apellido}</div>
+                  {u.rol === 'Estudiante' && u.codigoEstudiante && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Código: {u.codigoEstudiante}</div>}
+                </div>
                 <span style={{ fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>{u.dni}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: rb.bg, color: rb.color, border: `1px solid ${rb.border}` }}>{u.rol}</span>
                 <span style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{u.correo}</span>
