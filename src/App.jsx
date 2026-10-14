@@ -5203,14 +5203,14 @@ function AdminCursosView({ onNavigate }) {
     </div>);
 }
 const USUARIOS_INICIAL = [
-    { id: 'u1', nombre: 'María', apellido: 'López', dni: '74852136', rol: 'Apoderado', correo: 'maria.lopez@email.com', activo: true },
-    { id: 'u2', nombre: 'Carlos', apellido: 'Ramírez', dni: '70482135', rol: 'Estudiante', correo: 'carlos.ramirez@email.com', activo: true, codigoEstudiante: 'EST-016', apoderadoId: 'u1' },
-    { id: 'u3', nombre: 'Ana', apellido: 'Torres', dni: '72341198', rol: 'Apoderado', correo: 'ana.torres@email.com', activo: true },
-    { id: 'u4', nombre: 'Jorge', apellido: 'Herrera', dni: '73456789', rol: 'Docente', correo: 'jorge.herrera@colegio.pe', activo: true },
-    { id: 'u5', nombre: 'Lucía', apellido: 'Flores', dni: '75012378', rol: 'Estudiante', correo: 'lucia.flores@email.com', activo: false, codigoEstudiante: 'EST-017', apoderadoId: 'u3' },
-    { id: 'u6', nombre: 'Miguel', apellido: 'Castro', dni: '71234567', rol: 'Docente', correo: 'miguel.castro@colegio.pe', activo: true },
-    { id: 'u7', nombre: 'Patricia', apellido: 'Vega', dni: '76543210', rol: 'Apoderado', correo: 'patricia.vega@email.com', activo: true },
-    { id: 'u8', nombre: 'Diego', apellido: 'Salinas', dni: '77654321', rol: 'Estudiante', correo: 'diego.salinas@email.com', activo: true, codigoEstudiante: 'EST-018', apoderadoId: 'u7' },
+    { id: 'u1', nombre: 'María', apellido: 'López', dni: '74852136', rol: 'Apoderado', correo: 'maria.lopez@email.com', activo: true, edad: 38, telefono: '+51987654321' },
+    { id: 'u2', nombre: 'Carlos', apellido: 'Ramírez', dni: '70482135', rol: 'Estudiante', correo: 'carlos.ramirez@email.com', activo: true, edad: 14, telefono: '+51987654322', codigoEstudiante: 'EST-016', apoderadoId: 'u1' },
+    { id: 'u3', nombre: 'Ana', apellido: 'Torres', dni: '72341198', rol: 'Apoderado', correo: 'ana.torres@email.com', activo: true, edad: 42, telefono: '+51987654323' },
+    { id: 'u4', nombre: 'Jorge', apellido: 'Herrera', dni: '73456789', rol: 'Docente', correo: 'jorge.herrera@colegio.pe', activo: true, edad: 35, telefono: '+51987654324' },
+    { id: 'u5', nombre: 'Lucía', apellido: 'Flores', dni: '75012378', rol: 'Estudiante', correo: 'lucia.flores@email.com', activo: false, edad: 13, telefono: '+51987654325', codigoEstudiante: 'EST-017', apoderadoId: 'u3' },
+    { id: 'u6', nombre: 'Miguel', apellido: 'Castro', dni: '71234567', rol: 'Docente', correo: 'miguel.castro@colegio.pe', activo: true, edad: 41, telefono: '+51987654326' },
+    { id: 'u7', nombre: 'Patricia', apellido: 'Vega', dni: '76543210', rol: 'Apoderado', correo: 'patricia.vega@email.com', activo: true, edad: 39, telefono: '+51987654327' },
+    { id: 'u8', nombre: 'Diego', apellido: 'Salinas', dni: '77654321', rol: 'Estudiante', correo: 'diego.salinas@email.com', activo: true, edad: 15, telefono: '+51987654328', codigoEstudiante: 'EST-018', apoderadoId: 'u7' },
 ];
 const ROL_BADGE = {
     Apoderado: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
@@ -5276,7 +5276,7 @@ function UsuariosView({ onNavigate }) {
     const openEdit = (u) => {
         setEditTarget(u);
         const apoderadoSeleccionado = u.apoderadoId ? usuarios.find(usuario => usuario.id === u.apoderadoId) || null : null;
-        setEditForm({ nombre: u.nombre, apellido: u.apellido, dni: u.dni, telefono: u.telefono || '', correo: u.correo, dniApoderado: apoderadoSeleccionado?.dni || '', apoderadoSeleccionado });
+        setEditForm({ nombre: u.nombre, apellido: u.apellido, edad: u.edad ?? '', dni: u.dni, telefono: u.telefono || '', correo: u.correo, dniApoderado: apoderadoSeleccionado?.dni || '', apoderadoSeleccionado });
         setEditErrors({});
         setModal('editar');
     };
@@ -5288,14 +5288,14 @@ function UsuariosView({ onNavigate }) {
     };
     // Apoderado search for estudiante form
     const searchApoderado = () => {
-        const found = usuarios.find(u => u.rol === 'Apoderado' && u.dni === form.dniApoderado.trim());
+        const found = usuarios.find(u => u.rol === 'Apoderado' && u.activo && u.dni === form.dniApoderado.trim());
         if (found)
             setForm(p => ({ ...p, apoderadoSeleccionado: found, apoderadoError: '' }));
         else
             setForm(p => ({ ...p, apoderadoSeleccionado: null, apoderadoError: 'No se encontró un apoderado registrado con este DNI.' }));
     };
     const searchEditApoderado = () => {
-        const found = usuarios.find(u => u.rol === 'Apoderado' && u.dni === editForm.dniApoderado.trim());
+        const found = usuarios.find(u => u.rol === 'Apoderado' && u.activo && u.dni === editForm.dniApoderado.trim());
         if (found) {
             setEditForm(p => ({ ...p, apoderadoSeleccionado: found }));
             setEditErrors(p => ({ ...p, apoderadoId: '' }));
@@ -5387,10 +5387,22 @@ function UsuariosView({ onNavigate }) {
             errs.nombre = 'Ingrese el nombre.';
         if (!editForm.apellido.trim())
             errs.apellido = 'Ingrese el apellido.';
-        if (!/^\d{8}$/.test(editForm.dni.trim()))
-            errs.dni = 'El DNI debe tener 8 dígitos.';
+        const edadIngresada = String(editForm.edad).trim();
+        const edad = Number(edadIngresada);
+        const edadMinima = editTarget?.rol === 'Estudiante' ? 1 : 18;
+        if (edadIngresada && (!/^\d+$/.test(edadIngresada) || !Number.isSafeInteger(edad) || edad < edadMinima))
+            errs.edad = edadMinima === 18 ? 'La edad debe ser un número entero de 18 años o más.' : 'La edad debe ser un número entero positivo.';
+        const documentoValido = editTarget?.rol === 'Apoderado'
+            ? /^(?:\d{8}|\d{9})$/.test(editForm.dni.trim())
+            : /^\d{8}$/.test(editForm.dni.trim());
+        if (!documentoValido)
+            errs.dni = editTarget?.rol === 'Apoderado' ? 'Ingrese un DNI de 8 dígitos o un Carné de Extranjería de 9 dígitos.' : 'El DNI debe tener 8 dígitos.';
+        if (usuarios.some(u => u.id !== editTarget?.id && u.dni.trim() === editForm.dni.trim()))
+            errs.dni = 'Este DNI ya pertenece a otro usuario.';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.correo.trim()))
             errs.correo = 'Ingrese un correo válido.';
+        if (usuarios.some(u => u.id !== editTarget?.id && u.correo.trim().toLowerCase() === editForm.correo.trim().toLowerCase()))
+            errs.correo = 'Este correo ya pertenece a otro usuario.';
         const telefonoCompacto = editForm.telefono.trim().replace(/[\s()-]/g, '');
         const telefonoValido = telefonoCompacto.startsWith('+')
             ? /^\+[1-9]\d{7,14}$/.test(telefonoCompacto)
@@ -5412,6 +5424,7 @@ function UsuariosView({ onNavigate }) {
                 ...u,
                 nombre: editForm.nombre.trim(),
                 apellido: editForm.apellido.trim(),
+                ...(edadIngresada ? { edad } : {}),
                 dni: editForm.dni.trim(),
                 correo: editForm.correo.trim(),
                 telefono,
@@ -5560,7 +5573,8 @@ function UsuariosView({ onNavigate }) {
               <UsuarioField label="Nombre" value={editForm.nombre} onChange={v => { setEditForm(p => ({ ...p, nombre: v })); setEditErrors(p => ({ ...p, nombre: '' })); }} placeholder="Nombre" error={editErrors.nombre}/>
               <UsuarioField label="Apellido" value={editForm.apellido} onChange={v => { setEditForm(p => ({ ...p, apellido: v })); setEditErrors(p => ({ ...p, apellido: '' })); }} placeholder="Apellido" error={editErrors.apellido}/>
             </div>
-            <UsuarioField label="DNI" value={editForm.dni} onChange={v => { setEditForm(p => ({ ...p, dni: v })); setEditErrors(p => ({ ...p, dni: '' })); }} placeholder="DNI" error={editErrors.dni}/>
+            <UsuarioField label="Edad" type="number" min={1} step={1} value={editForm.edad} onChange={v => { setEditForm(p => ({ ...p, edad: v })); setEditErrors(p => ({ ...p, edad: '' })); }} placeholder="Ingrese la edad" error={editErrors.edad}/>
+            <UsuarioField label={editTarget.rol === 'Apoderado' ? 'DNI / Carné de Extranjería (C.E.)' : 'DNI'} value={editForm.dni} onChange={v => { setEditForm(p => ({ ...p, dni: v })); setEditErrors(p => ({ ...p, dni: '' })); }} placeholder={editTarget.rol === 'Apoderado' ? 'DNI o Carné de Extranjería' : 'Ingrese el DNI'} error={editErrors.dni}/>
             <div>
               <UsuarioField label="Teléfono" type="tel" value={editForm.telefono} onChange={v => { setEditForm(p => ({ ...p, telefono: v })); setEditErrors(p => ({ ...p, telefono: '' })); }} placeholder="Ingrese 9 dígitos o prefijo internacional +código" error={editErrors.telefono} required={editTarget.rol === 'Estudiante'}/>
               <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>Perú: 9 dígitos. Otro país: incluya + y el prefijo internacional.</p>
