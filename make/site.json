@@ -1,4 +1,5 @@
 {
+  "title": "EDUCODERS",
   "description": "Provides school admins a clean dashboard to monitor student enrollment, attendance, payments, and recent activities for efficient management.",
   "robots": {
     "index": false
